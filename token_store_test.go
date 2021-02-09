@@ -15,7 +15,7 @@ const (
 
 func TestTokenStore(t *testing.T) {
 	Convey("Test mysql token store", t, func() {
-		store := NewDefaultStore(NewConfig(dsn))
+		store := NewDefaultStore(NewConfig(dsn), true)
 		defer store.clean()
 
 		ctx := context.Background()

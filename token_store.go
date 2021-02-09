@@ -43,15 +43,15 @@ type Config struct {
 }
 
 // NewDefaultStore create mysql store instance
-func NewDefaultStore(config *Config) *Store {
-	return NewStore(config, "", 0)
+func NewDefaultStore(config *Config, autoMigrate bool) *Store {
+	return NewStore(config, "", 0, autoMigrate)
 }
 
 // NewStore create mysql store instance,
 // config mysql configuration,
 // tableName table name (default oauth2_token),
 // GC time interval (in seconds, default 600)
-func NewStore(config *Config, tableName string, gcInterval int) *Store {
+func NewStore(config *Config, tableName string, gcInterval int, autoMigrate bool) *Store {
 	db, err := xorm.NewEngine("mysql", config.DSN)
 
 	if err != nil {
@@ -62,19 +62,20 @@ func NewStore(config *Config, tableName string, gcInterval int) *Store {
 	db.SetMaxIdleConns(config.MaxIdleConns)
 	db.SetConnMaxLifetime(config.MaxLifetime)
 
-	return NewStoreWithDB(db, tableName, gcInterval)
+	return NewStoreWithDB(db, tableName, gcInterval, autoMigrate)
 }
 
 // NewStoreWithDB create mysql store instance,
 // db sql.DB,
 // tableName table name (default oauth2_token),
 // GC time interval (in seconds, default 600)
-func NewStoreWithDB(db *xorm.Engine, tableName string, gcInterval int) *Store {
+func NewStoreWithDB(db *xorm.Engine, tableName string, gcInterval int, autoMigrate bool) *Store {
 	store := &Store{
 		db:        db,
 		tableName: "oauth2_token",
 		stdout:    os.Stderr,
 	}
+
 	if tableName != "" {
 		store.tableName = tableName
 	}
@@ -83,26 +84,30 @@ func NewStoreWithDB(db *xorm.Engine, tableName string, gcInterval int) *Store {
 	if gcInterval > 0 {
 		interval = gcInterval
 	}
-	store.ticker = time.NewTicker(time.Second * time.Duration(interval))
-	stmt := fmt.Sprintf(`
-    CREATE TABLE IF NOT EXISTS %s (
-    id int(10) unsigned NOT NULL AUTO_INCREMENT,
-    code varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-    access varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-    refresh varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-    expired_at int(11) NOT NULL,
-    data varchar(2048) COLLATE utf8mb4_unicode_ci NOT NULL,
-    PRIMARY KEY (id),
-    KEY idx_oauth2_token_code (code),
-    KEY idx_oauth2_token_expired_at (expired_at),
-    KEY idx_oauth2_token_access (access),
-    KEY idx_oauth2_token_refresh (refresh)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`, store.tableName)
 
-	_, err := db.Exec(stmt)
-	if err != nil {
-		panic(err)
+	store.ticker = time.NewTicker(time.Second * time.Duration(interval))
+
+	if autoMigrate {
+		stmt := fmt.Sprintf(`
+					CREATE TABLE IF NOT EXISTS %s (
+					id int(10) unsigned NOT NULL AUTO_INCREMENT,
+					code varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+					access varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+					refresh varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+					expired_at int(11) NOT NULL,
+					data varchar(2048) COLLATE utf8mb4_unicode_ci NOT NULL,
+					PRIMARY KEY (id),
+					KEY idx_oauth2_token_code (code),
+					KEY idx_oauth2_token_expired_at (expired_at),
+					KEY idx_oauth2_token_access (access),
+					KEY idx_oauth2_token_refresh (refresh)
+				  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+				`, store.tableName)
+
+		_, err := db.Exec(stmt)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	go store.gc()
