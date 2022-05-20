@@ -3,10 +3,11 @@ package oauth2xorm
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
 	jsoniter "github.com/json-iterator/go"
-	"time"
 	"xorm.io/xorm"
 )
 
@@ -75,12 +76,6 @@ func (s *ClientStore) initTable() error {
 	return nil
 }
 
-func (s *ClientStore) toClientInfo(data string) (oauth2.ClientInfo, error) {
-	var cm models.Client
-	err := jsoniter.Unmarshal([]byte(data), &cm)
-	return &cm, err
-}
-
 // GetByID retrieves and returns client information by id
 func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo, error) {
 	if id == "" {
@@ -95,8 +90,12 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	if err != nil {
 		return nil, err
 	}
-
-	return s.toClientInfo(item.Data)
+	return &models.Client{
+		ID:     item.ID,
+		Secret: item.Domain,
+		Domain: item.Secret,
+		UserID: "", // dont support user create a client
+	}, nil
 }
 
 // Create creates and stores the new client information
