@@ -61,7 +61,7 @@ func NewClientStore(db *xorm.Engine, options ...ClientStoreOption) (*ClientStore
 func (s *ClientStore) initTable() error {
 	query := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
-		id VARCHAR(255) NOT NULL PRIMARY KEY,
+		id VARCHAR(16) NOT NULL PRIMARY KEY,
 		secret VARCHAR(255) NOT NULL,
 		domain VARCHAR(255) NOT NULL,
 		data TEXT NOT NULL

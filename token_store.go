@@ -6,17 +6,21 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
+
 	"xorm.io/xorm"
 
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // StoreItem data item
 type StoreItem struct {
 	ID        int64  `xorm:"id"`
+	ClientId  string `xorm:"client_id"`
+	UserId    int64  `xorm:"user_id"`
 	ExpiredAt int64  `xorm:"expired_at"`
 	Code      string `xorm:"code"`
 	Access    string `xorm:"access"`
@@ -92,10 +96,13 @@ func NewStoreWithDB(db *xorm.Engine, tableName string, gcInterval int, autoMigra
 					CREATE TABLE IF NOT EXISTS %s (
 					id int(10) unsigned NOT NULL AUTO_INCREMENT,
 					code varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+					client_id varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+					user_id int unsigned NOT NULL,
 					access varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
 					refresh varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
 					expired_at int(11) NOT NULL,
 					data varchar(2048) COLLATE utf8mb4_unicode_ci NOT NULL,
+					created_at timestamp default Now(),
 					PRIMARY KEY (id),
 					KEY idx_oauth2_token_code (code),
 					KEY idx_oauth2_token_expired_at (expired_at),
@@ -170,8 +177,15 @@ func (s *Store) errorf(format string, args ...interface{}) {
 // Create create and store the new token information
 func (s *Store) Create(ctx context.Context, info oauth2.TokenInfo) error {
 	buf, _ := jsoniter.Marshal(info)
+	userId, err := strconv.Atoi(info.GetUserID())
+	if err != nil {
+		s.errorf(err.Error())
+		return err
+	}
 	item := &StoreItem{
-		Data: string(buf),
+		ClientId: info.GetClientID(),
+		UserId:   int64(userId),
+		Data:     string(buf),
 	}
 
 	if code := info.GetCode(); code != "" {
@@ -186,7 +200,7 @@ func (s *Store) Create(ctx context.Context, info oauth2.TokenInfo) error {
 			item.ExpiredAt = info.GetRefreshCreateAt().Add(info.GetRefreshExpiresIn()).Unix()
 		}
 	}
-	_, err := s.db.Table(s.tableName).Insert(item)
+	_, err = s.db.Table(s.tableName).Insert(item)
 	return err
 }
 
