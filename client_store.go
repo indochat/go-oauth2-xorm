@@ -92,8 +92,8 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	}
 	return &models.Client{
 		ID:     item.ID,
-		Secret: item.Domain,
-		Domain: item.Secret,
+		Secret: item.Secret,
+		Domain: item.Domain,
 		UserID: "", // dont support user create a client
 	}, nil
 }
